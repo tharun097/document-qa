@@ -1,91 +1,99 @@
 import streamlit as st
+from groq import Groq
 import tempfile
-import docx
-import PyPDF2
-from langchain_groq import ChatGroq
 
-# ---------------------------------------------------------
-# INTERNAL GROQ API KEY
-# ---------------------------------------------------------
+# -----------------------------------------------
+# CONFIG
+# -----------------------------------------------
+st.set_page_config(page_title="Document Q&A (Groq)", page_icon="📄")
+
 GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 
-# ---------------------------------------------------------
-# STREAMLIT UI
-# ---------------------------------------------------------
-st.title("📄 Document Question Answering (Groq LLM)")
-st.write("Upload a document and ask questions about it using Groq Llama 3.")
+# Create Groq client
+client = Groq(api_key=GROQ_API_KEY)
 
+# -----------------------------------------------
+# UI
+# -----------------------------------------------
+st.title("📄 Chat with Your Documents — Powered by Groq 🚀")
+st.write("Upload a document and ask questions about its content.")
+
+# -----------------------------------------------
+# FILE UPLOAD
+# -----------------------------------------------
 uploaded_file = st.file_uploader(
-    "Upload a document (.pdf, .txt, .md, .docx)",
-    type=["pdf", "txt", "md", "docx"]
+    "Upload a document",
+    type=["pdf", "txt", "md"],
 )
 
-question = st.text_area(
-    "Ask a question about the document",
-    placeholder="Example: Give me a short summary..."
-)
+# -----------------------------------------------
+# READ DOCUMENT CONTENT
+# -----------------------------------------------
+document_text = ""
 
-# ---------------------------------------------------------
-# READ DOCUMENT (NO PDFPLUMBER)
-# ---------------------------------------------------------
-def read_document(file):
-    filename = file.name.lower()
-
-    # Save to temp file
+if uploaded_file:
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
-        tmp.write(file.read())
+        tmp.write(uploaded_file.read())
         temp_path = tmp.name
 
-    # PDF → text using PyPDF2
-    if filename.endswith(".pdf"):
+    # PDF Handling
+    if uploaded_file.name.endswith(".pdf"):
+        from PyPDF2 import PdfReader
+        pdf = PdfReader(temp_path)
         text = ""
-        with open(temp_path, "rb") as f:
-            reader = PyPDF2.PdfReader(f)
-            for page in reader.pages:
-                text += page.extract_text() or ""
-        return text
+        for page in pdf.pages:
+            text += page.extract_text() or ""
+        document_text = text
 
-    # DOCX → text
-    if filename.endswith(".docx"):
-        doc = docx.Document(temp_path)
-        return "\n".join([p.text for p in doc.paragraphs])
+    # TXT or MD
+    else:
+        with open(temp_path, "r", encoding="utf-8", errors="ignore") as f:
+            document_text = f.read()
 
-    # TXT / MD
-    with open(temp_path, "r", encoding="utf-8", errors="ignore") as f:
-        return f.read()
+    st.success(f"📄 Document loaded successfully: {uploaded_file.name}")
+    st.subheader("📘 Extracted Document Preview")
+    st.text_area("Document Content", document_text[:3000], height=200)
 
+# -----------------------------------------------
+# QUESTION INPUT
+# -----------------------------------------------
+question = st.text_area(
+    "💬 Ask a question about the document:",
+    placeholder="E.g., Summarize the key points...",
+    disabled=not uploaded_file
+)
 
-# ---------------------------------------------------------
-# PROCESS INPUT & SEND TO GROQ
-# ---------------------------------------------------------
+# -----------------------------------------------
+# HANDLE QUESTION + STREAMING ANSWER
+# -----------------------------------------------
 if uploaded_file and question:
 
-    document_text = read_document(uploaded_file)
+    st.subheader("🤖 Answer")
+    full_prompt = f"""
+You are a helpful assistant. Use the document below to answer the question.
 
-    st.subheader("📤 Your Question")
-    st.write(question)
+DOCUMENT:
+---------------------
+{document_text}
+---------------------
 
-    client = ChatGroq(model="llama-3.1-8b-instant",api_key=GROQ_API_KEY)
+QUESTION:
+{question}
 
+Answer in a clear and concise way.
+"""
 
-    # Prepare Groq messages
+    # Prepare messages
     messages = [
-        {
-            "role": "user",
-            "content": (
-                f"Here is the document:\n\n{document_text}\n\n---\n\n"
-                f"Question: {question}"
-            )
-        }
+        {"role": "user", "content": full_prompt}
     ]
 
-    st.subheader("🤖 Response")
-
-    # Stream Groq LLM output
+    # Stream response
     stream = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=messages,
-        stream=True,
+        stream=True
     )
 
+    response_container = st.empty()
     st.write_stream(stream)
