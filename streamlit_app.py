@@ -44,9 +44,12 @@ if uploaded_file:
 
     st.success(f"📄 {uploaded_file.name} uploaded successfully!")
 
-    # Preview button
-    if st.button("👁️ View Document Preview"):
-        st.text_area("Document Preview", document_text[:3000], height=200)
+    with st.expander("📄 Show Document Preview"):
+        st.text_area(
+            "Document Preview",
+            document_text[:4000],
+            height=250
+        )
 
 
 # -----------------------------------------------
