@@ -1,99 +1,98 @@
 import streamlit as st
 from groq import Groq
 import tempfile
+from PyPDF2 import PdfReader
 
 # -----------------------------------------------
 # CONFIG
 # -----------------------------------------------
-st.set_page_config(page_title="Document Q&A (Groq)", page_icon="📄")
+st.set_page_config(page_title="Document Q&A", page_icon="📄")
 
 GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 
-# Create Groq client
 client = Groq(api_key=GROQ_API_KEY)
 
 # -----------------------------------------------
 # UI
 # -----------------------------------------------
-st.title("📄 Chat with Your Documents — Powered by Groq 🚀")
-st.write("Upload a document and ask questions about its content.")
+st.title("📄 Document Q&A — Groq Llama 3.1")
+st.write("Upload a document and ask any question about it.")
 
-# -----------------------------------------------
-# FILE UPLOAD
-# -----------------------------------------------
-uploaded_file = st.file_uploader(
-    "Upload a document",
-    type=["pdf", "txt", "md"],
-)
-
-# -----------------------------------------------
-# READ DOCUMENT CONTENT
-# -----------------------------------------------
+uploaded_file = st.file_uploader("Upload Document", type=["pdf", "txt", "md"])
 document_text = ""
 
+
+# -----------------------------------------------
+# LOAD DOCUMENT
+# -----------------------------------------------
 if uploaded_file:
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmp.write(uploaded_file.read())
         temp_path = tmp.name
 
-    # PDF Handling
-    if uploaded_file.name.endswith(".pdf"):
-        from PyPDF2 import PdfReader
+    if uploaded_file.name.lower().endswith(".pdf"):
         pdf = PdfReader(temp_path)
         text = ""
         for page in pdf.pages:
-            text += page.extract_text() or ""
+            extracted = page.extract_text() or ""
+            text += extracted
         document_text = text
 
-    # TXT or MD
     else:
         with open(temp_path, "r", encoding="utf-8", errors="ignore") as f:
             document_text = f.read()
 
-    st.success(f"📄 Document loaded successfully: {uploaded_file.name}")
-    st.subheader("📘 Extracted Document Preview")
-    st.text_area("Document Content", document_text[:3000], height=200)
+    st.success(f"📄 {uploaded_file.name} uploaded successfully!")
+
+    # Preview button
+    if st.button("👁️ View Document Preview"):
+        st.text_area("Document Preview", document_text[:3000], height=200)
+
 
 # -----------------------------------------------
-# QUESTION INPUT
+# ASK QUESTION
 # -----------------------------------------------
-question = st.text_area(
-    "💬 Ask a question about the document:",
-    placeholder="E.g., Summarize the key points...",
+question = st.text_input(
+    "💬 Ask your question:",
+    placeholder="Example: Summarize the document...",
     disabled=not uploaded_file
 )
 
 # -----------------------------------------------
-# HANDLE QUESTION + STREAMING ANSWER
+# STREAMING ANSWER (CLEAN TEXT ONLY)
 # -----------------------------------------------
 if uploaded_file and question:
-
     st.subheader("🤖 Answer")
-    full_prompt = f"""
-You are a helpful assistant. Use the document below to answer the question.
+
+    prompt = f"""
+You are an AI assistant. Use the document below to answer the question.
 
 DOCUMENT:
----------------------
+-------------------
 {document_text}
----------------------
+-------------------
 
 QUESTION:
 {question}
 
-Answer in a clear and concise way.
+Give a clear and concise answer.
 """
 
-    # Prepare messages
     messages = [
-        {"role": "user", "content": full_prompt}
+        {"role": "user", "content": prompt}
     ]
 
-    # Stream response
     stream = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=messages,
         stream=True
     )
 
-    response_container = st.empty()
-    st.write_stream(stream)
+    # Stream clean text only
+    def stream_text(chunks):
+        for chunk in chunks:
+            delta = chunk.choices[0].delta
+            if hasattr(delta, "content") and delta.content:
+                yield delta.content
+
+    st.write_stream(stream_text(stream))
