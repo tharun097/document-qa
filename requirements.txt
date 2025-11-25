@@ -1,2 +1,6 @@
 streamlit
-openai
+langchain
+PyPDF2
+langchain_groq
+tempfile
+docx
