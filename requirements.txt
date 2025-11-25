@@ -1,6 +1,5 @@
 streamlit
 langchain
 PyPDF2
+python-docx
 langchain_groq
-tempfile
-docx
