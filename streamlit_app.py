@@ -65,7 +65,8 @@ if uploaded_file and question:
     st.subheader("📤 Your Question")
     st.write(question)
 
-    client = ChatGroq(api_key=GROQ_API_KEY)
+    client = ChatGroq(model="llama-3.1-8b-instant",api_key=GROQ_API_KEY)
+
 
     # Prepare Groq messages
     messages = [
