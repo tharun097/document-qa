@@ -15,7 +15,7 @@ client = Groq(api_key=GROQ_API_KEY)
 # -----------------------------------------------
 # UI
 # -----------------------------------------------
-st.title("📄 Document Q&A — Groq Llama 3.1")
+st.title("📄 Document Q&A — powered by Groq")
 st.write("Upload a document and ask any question about it.")
 
 uploaded_file = st.file_uploader("Upload Document", type=["pdf", "txt", "md"])
